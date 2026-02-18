@@ -1,0 +1,56 @@
+MCP server has to be available publically to try with OpenAPI playground etc.
+Claude Desktop unfortunately don't have an easy way out. Claude API can do that.
+
+In order for us to decide the first step in Golem, we need to test the transport protocol and messages
+of MCP
+
+cloudflared tunnel --url http://localhost:8080 (will get something like this in return:
+
+https://telecom-exam-chances-developer.trycloudflare.com
+
+
+And try the following
+
+
+```sh
+curl -i -X POST https://telecom-exam-chances-developer.trycloudflare.com/mcp \
+           -H "Content-Type: application/json" \
+           -H "Accept: application/json" \
+           -d '{
+         "jsonrpc": "2.0",
+         "id": 1,
+         "method": "initialize",
+         "params": {
+           "protocolVersion": "2025-06-18",
+           "capabilities": {},
+           "clientInfo": {
+             "name": "curl-client",
+             "version": "1.0.0"
+           }
+         }
+       }'
+```
+
+responding with something, most importantly a session-id (mcp-session-id)
+
+```sh
+
+{"id":1,"jsonrpc":"2.0","result":{"capabilities":{"tools":{"listChanged":false}},"protocolVersion":"2025-06-18","serverInfo":{"name":"golem-mcp-dev","version":"0.1.0"}}}⏎
+
+```
+
+```sh
+curl -X POST https://telecom-exam-chances-developer.trycloudflare.com/mcp \
+           -H "Content-Type: application/json" \
+           -H "Accept: application/json" \
+           -H "Mcp-Session-Id: 59330286-0795-41e5-b952-4b64d618225a" \
+           -d '{
+         "jsonrpc": "2.0",
+         "id": 2,
+         "method": "tools/list",
+         "params": {}
+       }'
+{"id":2,"jsonrpc":"2.0","result":{"tools":[{"description":"Returns a greeting","inputSchema":{"properties":{"name":{"type":"string"}},"required":["name"],"type":"object"},"name":"hello_agent","title":"Hello Agent"}]}}⏎
+ ~ 
+
+```
