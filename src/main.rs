@@ -61,9 +61,11 @@ async fn mcp_handler(
         return (StatusCode::OK, response_headers, Json(body));
     }
 
-    // ========================================
-    // All other calls require session header
-    // ========================================
+
+    if method == "notifications/initialized" {
+        return (StatusCode::ACCEPTED, HeaderMap::new(), Json(json!({})));
+    }
+
     if headers.get("Mcp-Session-Id").is_none() {
         let body = json!({
             "jsonrpc": "2.0",
@@ -77,9 +79,6 @@ async fn mcp_handler(
         return (StatusCode::BAD_REQUEST, HeaderMap::new(), Json(body));
     }
 
-    // ========================================
-    // tools/list
-    // ========================================
     if method == "tools/list" {
         let body = json!({
             "jsonrpc": "2.0",
@@ -87,15 +86,15 @@ async fn mcp_handler(
             "result": {
                 "tools": [
                     {
-                        "name": "hello_agent",
-                        "title": "Hello Agent",
-                        "description": "Returns a greeting",
+                        "name": "counter",
+                        "title": "Counter",
+                        "description": "Increments a given number",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
-                                "name": { "type": "string" }
+                                "number": { "type": "integer" }
                             },
-                            "required": ["name"]
+                            "required": ["number"]
                         }
                     }
                 ]
@@ -105,9 +104,6 @@ async fn mcp_handler(
         return (StatusCode::OK, HeaderMap::new(), Json(body));
     }
 
-    // ========================================
-    // tools/call
-    // ========================================
     if method == "tools/call" {
         let params = payload.get("params").cloned().unwrap_or(json!({}));
         let tool_name = params
@@ -115,7 +111,7 @@ async fn mcp_handler(
             .and_then(|v| v.as_str())
             .unwrap_or("");
 
-        if tool_name != "hello_agent" {
+        if tool_name != "counter" {
             let body = json!({
                 "jsonrpc": "2.0",
                 "id": id,
@@ -133,10 +129,12 @@ async fn mcp_handler(
             .cloned()
             .unwrap_or(json!({}));
 
-        let name = args
-            .get("name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("World");
+        let number = args
+            .get("number")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1);
+
+        let incremented = number + 1;
 
         let body = json!({
             "jsonrpc": "2.0",
@@ -145,7 +143,7 @@ async fn mcp_handler(
                 "content": [
                     {
                         "type": "text",
-                        "text": format!("Hello, {}!", name)
+                        "text": format!("Hello, {}!", incremented)
                     }
                 ],
                 "isError": false
@@ -155,9 +153,6 @@ async fn mcp_handler(
         return (StatusCode::OK, HeaderMap::new(), Json(body));
     }
 
-    // ========================================
-    // Unknown method
-    // ========================================
     let body = json!({
         "jsonrpc": "2.0",
         "id": id,

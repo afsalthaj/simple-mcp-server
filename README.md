@@ -31,9 +31,10 @@ curl -i -X POST http://localhost:8080/mcp \
     }
   }'
 
-
-
 ```
+
+Response has SessionId in header. 
+
 
 ## List Capabilities
 
@@ -66,9 +67,9 @@ curl -X POST http://localhost:8080/mcp \
     "id": 3,
     "method": "tools/call",
     "params": {
-      "name": "hello_agent",
+      "name": "counter",
       "arguments": {
-        "name": "Alice"
+        "number": 1
       }
     }
   }'
