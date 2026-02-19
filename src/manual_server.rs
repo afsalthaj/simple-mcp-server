@@ -1,5 +1,6 @@
 mod rmcp_streamable_http;
 
+// Refer to rcmp_streamable_http.rs for a more useful stuff
 use axum::{
     extract::Json,
     http::{HeaderMap, HeaderValue, StatusCode},
@@ -38,9 +39,6 @@ async fn mcp_handler(
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
-    // ========================================
-    // INITIALIZE
-    // ========================================
     if method == "initialize" || method == "initialise" {
         let session_id = Uuid::new_v4().to_string();
 

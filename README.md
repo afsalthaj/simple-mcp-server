@@ -12,7 +12,22 @@ cargo run --example golem_server_rmcp
 ```
 
 
-## Manul server handshake details
+```sh
+
+# This is important why because, none of the clients can connect to a local
+# MCP servers through http (all of them use this STDIO which is of no use to us)
+cloudflared tunnel --url http://127.0.0.1:8000
+
+```
+
+Then, copy the URL and add a tool `MCP Server` in https://platform.openai.com/chat/edit?models=gpt-4.1-mini or
+clients of your choice. I will be surprised if this works in Claude Desktop (as I couldn't manage to get that going).
+
+Apparently this play-ground will be our go-to manual-testing of golem servers too
+
+
+## Manul server handshake details (the bare minimum that has to be there in GOLEM regardless of using SDK or not)
+
 Note that the flow is simple HTTP with JSON-RPC 2.0, so you can use any HTTP client to interact with the MCP server. 
 Below are some example `curl` commands to demonstrate the flow.
 

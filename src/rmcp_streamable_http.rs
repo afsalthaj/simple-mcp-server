@@ -100,10 +100,9 @@ impl CallToolHandler<GolemAgentMcpServer, ()> for AgentMethodMcpWrapper {
         async move {
             // Here you would implement the logic to call the actual method based on context and self.method
             // For demonstration, we return a dummy success result
-            Ok(CallToolResult::success(vec![Content::text(format!(
-                "Called method: {}",
-                self.method.method_name
-            ))]))
+            Ok(CallToolResult::structured(serde_json::Value::Array(
+                vec![json!({"result": "example output"})]
+            )))
         }
         .boxed()
     }
