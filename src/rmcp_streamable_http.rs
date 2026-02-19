@@ -54,8 +54,11 @@ impl CallToolHandler<GolemAgentMcpServer, ()> for AgentMethodMcpBridge {
 
 const BIND_ADDRESS: &str = "127.0.0.1:8000";
 
-// This is needed for our per server instance to ensure we have the same session-id
-//
+// Not good...........
+// Must find ways to avoid it.
+// THis is because to form the routing we need to know the agent_id
+//  Ok(GolemAgentMcpServer::new(agent_id)))
+// but then we cannot build it for all the requests that happened during handshake
 type ServiceMap = Arc<RwLock<HashMap<AgentId, StreamableHttpService<
     GolemAgentMcpServer,
     LocalSessionManager
