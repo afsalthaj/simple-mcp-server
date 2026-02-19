@@ -1,5 +1,7 @@
 # MCP Server POC
 
+See https://github.com/afsalthaj/simple-mcp-server/blob/master/src/rmcp_streamable_http.rs
+
 ```sh
 
 # manual handshake
