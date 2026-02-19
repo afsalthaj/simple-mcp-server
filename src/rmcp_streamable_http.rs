@@ -23,6 +23,32 @@ use tracing_subscriber::{
     {self},
 };
 
+
+// Thsi is what I think we should do in Golem and create an instance of CallToolHandler
+// Direct use of SDK is much more simpler because these are all "macro" handled,
+// but unfortunately we will have these lower level details popped up in golem code base.
+#[derive(Clone)]
+pub struct AgentMethodMcpBridge {
+    method: AgentMethod,
+}
+
+
+// In golem we will have exactly this to a great extent.
+// An AgentMethod
+impl CallToolHandler<GolemAgentMcpServer, ()> for AgentMethodMcpBridge {
+    fn call(
+        self,
+        context: ToolCallContext<'_, GolemAgentMcpServer>,
+    ) -> BoxFuture<'_, Result<CallToolResult, ErrorData>> {
+        async move {
+            Ok(CallToolResult::structured(serde_json::Value::Array(
+                vec![json!({"result": "example output"})]
+            )))
+        }
+            .boxed()
+    }
+}
+
 const BIND_ADDRESS: &str = "127.0.0.1:8000";
 
 #[tokio::main]
@@ -64,7 +90,7 @@ fn get_schema(input: DataSchema) -> JsonObject {
         // For simplicity, we treat element_schema as a string describing the type
         // In a real implementation, this would be more complex and handle nested structures
         let schema = match element_schema.as_str() {
-            "string" => json!({"type": "string"}),
+            "string" => json!({"type": "string"}), // We will be port this POC soon to Golem where the match on is ElementSchema I guess
             "integer" => json!({"type": "integer"}),
             "boolean" => json!({"type": "boolean"}),
             _ => json!({"type": "string"}), // Default to string for unknown types
@@ -87,28 +113,8 @@ pub struct AgentMethod {
     output_schema: DataSchema,
 }
 
-#[derive(Clone)]
-pub struct AgentMethodMcpWrapper {
-    method: AgentMethod,
-}
 
-impl CallToolHandler<GolemAgentMcpServer, ()> for AgentMethodMcpWrapper {
-    fn call(
-        self,
-        context: ToolCallContext<'_, GolemAgentMcpServer>,
-    ) -> BoxFuture<'_, Result<CallToolResult, ErrorData>> {
-        async move {
-            // Here you would implement the logic to call the actual method based on context and self.method
-            // For demonstration, we return a dummy success result
-            Ok(CallToolResult::structured(serde_json::Value::Array(
-                vec![json!({"result": "example output"})]
-            )))
-        }
-        .boxed()
-    }
-}
-
-pub fn get_agent_tool_and_handlers(agent_name: &str) -> Vec<(Tool, AgentMethodMcpWrapper)> {
+pub fn get_agent_tool_and_handlers(agent_name: &str) -> Vec<(Tool, AgentMethodMcpBridge)> {
     let agent_method = AgentMethod {
         method_name: "example_method".into(),
         input_schema: vec![
@@ -133,7 +139,7 @@ pub fn get_agent_tool_and_handlers(agent_name: &str) -> Vec<(Tool, AgentMethodMc
             icons: None,
             meta: None,
         },
-        AgentMethodMcpWrapper {
+        AgentMethodMcpBridge {
             method: AgentMethod {
                 method_name: "example_method".into(),
                 input_schema: vec![
