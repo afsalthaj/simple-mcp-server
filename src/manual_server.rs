@@ -1,24 +1,31 @@
+mod rmcp_streamable_http;
+
 use axum::{
     extract::Json,
     http::{HeaderMap, HeaderValue, StatusCode},
     response::IntoResponse,
     routing::post,
-    Router, Server,
+    Router,
 };
 use serde_json::{json, Value};
-use std::net::SocketAddr;
 use uuid::Uuid;
 
+const BIND_ADDRESS: &str = "127.0.0.1:8000";
+
+
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()>  {
+    let tcp_listener = tokio::net::TcpListener::bind(BIND_ADDRESS).await?;
+
     let app = Router::new().route("/mcp", post(mcp_handler));
+
 
     println!("MCP server running on http://0.0.0.0:8080/mcp");
 
-    Server::bind(&"0.0.0.0:8080".parse::<SocketAddr>().unwrap())
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    axum::serve(tcp_listener, app.into_make_service())
+        .await?;
+
+    Ok(())
 }
 
 async fn mcp_handler(

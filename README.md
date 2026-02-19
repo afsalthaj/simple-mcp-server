@@ -2,7 +2,7 @@
 
 ```sh
 
-cargo run
+cargo run --example server_manual_single_http_response_body
 
 
 ```
