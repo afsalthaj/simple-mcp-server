@@ -19,6 +19,8 @@ anyhow = "1.0.101"
 tokio-util = "0.7.18"
 chrono = "0.4.43"
 tracing = "0.1.44"
+url = "2.5.8"
+async-trait = "0.1.89"
 
 [[example]]
 name = "manual_server"

@@ -1,8 +1,9 @@
 #![allow(dead_code)]
-use std::sync::Arc;
 
-// A quick design POC on how things should look like in Golem
-// and an actual server
+use std::collections::HashMap;
+use std::sync::Arc;
+use axum::extract::{Path, Query, State};
+use axum::routing::any;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use rmcp::handler::server::tool::{CallToolHandler, ToolCallContext};
@@ -12,7 +13,7 @@ use rmcp::{
     ServerHandler,
 };
 use serde_json::json;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 
 use rmcp::transport::streamable_http_server::{
     session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
@@ -24,7 +25,9 @@ use tracing_subscriber::{
 };
 
 
-// Thsi is what I think we should do in Golem and create an instance of CallToolHandler
+// This is not an example of rmcp but an example of how it could work with Golem
+
+// This is what I think we should do in Golem and create an instance of CallToolHandler
 // Direct use of SDK is much more simpler because these are all "macro" handled,
 // but unfortunately we will have these lower level details popped up in golem code base.
 #[derive(Clone)]
@@ -41,15 +44,22 @@ impl CallToolHandler<GolemAgentMcpServer, ()> for AgentMethodMcpBridge {
         context: ToolCallContext<'_, GolemAgentMcpServer>,
     ) -> BoxFuture<'_, Result<CallToolResult, ErrorData>> {
         async move {
-            Ok(CallToolResult::structured(serde_json::Value::Array(
-                vec![json!({"result": "example output"})]
-            )))
+            Ok(CallToolResult::structured(
+                json!({"result": "example output"})
+            ))
         }
             .boxed()
     }
 }
 
 const BIND_ADDRESS: &str = "127.0.0.1:8000";
+
+// This is needed for our per server instance to ensure we have the same session-id
+//
+type ServiceMap = Arc<RwLock<HashMap<AgentId, StreamableHttpService<
+    GolemAgentMcpServer,
+    LocalSessionManager
+>>>>;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -58,17 +68,15 @@ async fn main() -> anyhow::Result<()> {
         .init();
     let ct = tokio_util::sync::CancellationToken::new();
 
-    let service = StreamableHttpService::new(
-        || Ok(GolemAgentMcpServer::new()),
-        LocalSessionManager::default().into(),
-        StreamableHttpServerConfig {
-            cancellation_token: ct.child_token(),
-            ..Default::default()
-        },
-    );
+    let services: ServiceMap = Arc::new(RwLock::new(HashMap::new()));
 
-    let router = axum::Router::new().nest_service("/mcp", service);
+
+    let router = axum::Router::new().route("/mcp/{agent_id}", any(mcp_entry).with_state(
+        services
+    ));
+
     let tcp_listener = tokio::net::TcpListener::bind(BIND_ADDRESS).await?;
+
     let _ = axum::serve(tcp_listener, router)
         .with_graceful_shutdown(async move {
             tokio::signal::ctrl_c().await.unwrap();
@@ -76,6 +84,30 @@ async fn main() -> anyhow::Result<()> {
         })
         .await;
     Ok(())
+}
+
+async fn mcp_entry(
+    State(services): State<ServiceMap>,
+    Path(agent_id): Path<String>,
+    req: axum::http::Request<axum::body::Body>,
+) -> impl axum::response::IntoResponse {
+
+    if let Some(service) = services.read().await.get(&agent_id) {
+        return service.handle(req).await;
+    }
+
+    let service = StreamableHttpService::new(
+        {
+            let agent_id = agent_id.clone();
+            move || Ok(GolemAgentMcpServer::new(agent_id.clone()))
+        },
+        LocalSessionManager::default().into(), // This I think needs to be distributed. otherwise handhshake will fail
+        StreamableHttpServerConfig::default(),
+    );
+
+    services.write().await.insert(agent_id.clone(), service.clone());
+
+    service.handle(req).await
 }
 
 type ParameterName = String;
@@ -113,8 +145,10 @@ pub struct AgentMethod {
     output_schema: DataSchema,
 }
 
+type AgentId = String;
 
-pub fn get_agent_tool_and_handlers(agent_name: &str) -> Vec<(Tool, AgentMethodMcpBridge)> {
+pub fn get_agent_tool_and_handlers(agent_id: &AgentId) -> Vec<(Tool, AgentMethodMcpBridge)> {
+    // just dummy,
     let agent_method = AgentMethod {
         method_name: "example_method".into(),
         input_schema: vec![
@@ -152,22 +186,23 @@ pub fn get_agent_tool_and_handlers(agent_name: &str) -> Vec<(Tool, AgentMethodMc
     )]
 }
 
-#[derive(Clone)]
+
+#[derive(Clone)] // required unfortunately
 pub struct GolemAgentMcpServer {
     tool_router: ToolRouter<GolemAgentMcpServer>,
     processor: Arc<Mutex<OperationProcessor>>,
 }
 
 impl GolemAgentMcpServer {
-    pub fn new() -> Self {
+    pub fn new(agent_id: AgentId) -> Self {
         Self {
-            tool_router: Self::tool_router(),
+            tool_router: Self::tool_router(agent_id),
             processor: Arc::new(Mutex::new(OperationProcessor::new())),
         }
     }
 
-    fn tool_router() -> ToolRouter<GolemAgentMcpServer> {
-        let tool_handlers = get_agent_tool_and_handlers("agent_name");
+    fn tool_router(agent_id: AgentId) -> ToolRouter<GolemAgentMcpServer> {
+        let tool_handlers = get_agent_tool_and_handlers(&agent_id);
 
         let mut router = ToolRouter::<Self>::new();
 
@@ -176,10 +211,6 @@ impl GolemAgentMcpServer {
         }
 
         router
-    }
-
-    fn say_hello(&self, name: String) -> Result<CallToolResult, McpError> {
-        Ok(CallToolResult::success(vec![Content::text("hello")]))
     }
 }
 
@@ -195,7 +226,7 @@ impl ServerHandler for GolemAgentMcpServer {
                 .enable_tools()
                 .build(),
             server_info: Implementation::from_build_env(),
-            instructions: Some("This server provides counter tools and prompts. Tools: increment, decrement, get_value, say_hello, echo, sum. Prompts: example_prompt (takes a message), counter_analysis (analyzes counter state with a goal).".to_string()),
+            instructions: Some("This server provides  tools related to agent in golem and prompts. Tools: increment, decrement, get_value, say_hello, echo, sum. Prompts: example_prompt (takes a message), counter_analysis (analyzes counter state with a goal).".to_string()),
         }
     }
 
@@ -246,6 +277,7 @@ impl ServerHandler for GolemAgentMcpServer {
         if let Some(http_request_part) = context.extensions.get::<axum::http::request::Parts>() {
             let initialize_headers = &http_request_part.headers;
             let initialize_uri = &http_request_part.uri;
+            dbg!("here are the initialize headers ", initialize_headers);
             tracing::info!(?initialize_headers, %initialize_uri, "initialize from http server");
         }
         Ok(self.get_info())
