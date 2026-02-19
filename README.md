@@ -1,4 +1,4 @@
-# MCP flow
+# MCP Server POC
 
 ```sh
 
