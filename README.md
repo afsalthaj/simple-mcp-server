@@ -2,11 +2,17 @@
 
 ```sh
 
-cargo run --example server_manual_single_http_response_body
+# manual handshake
+cargo run --example manual_server
 
+# rust sdk
+
+cargo run --example golem_server_rmcp
 
 ```
 
+
+## Manul server handshake details
 Note that the flow is simple HTTP with JSON-RPC 2.0, so you can use any HTTP client to interact with the MCP server. 
 Below are some example `curl` commands to demonstrate the flow.
 
