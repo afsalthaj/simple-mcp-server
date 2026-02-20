@@ -31,10 +31,6 @@ use tracing_subscriber::{
 };
 
 
-// This is not an example of rmcp but an example of how it could work with Golem
-// with 1 MCP server is per agent "instance" (url encoded with ID - only tested with query parameters)
-// `/mcp/my-agent(agent_id)`
-
 // This is what I think we should do in Golem and create an instance of CallToolHandler
 // Direct use of SDK is much more simpler because these are all "macro" handled,
 // but unfortunately we will have these lower level details popped up in golem code base.
@@ -45,7 +41,7 @@ pub struct AgentMethodMcpBridge {
 
 
 // While `CallToolHandler` is auto implemented by `tool_handler` macro usually
-// but in our case this is manuakl
+// but in our case this is manually
 // in SDK given a tool annotated function
 // but in our case there is no tool or resource annotation
 
@@ -66,18 +62,13 @@ impl CallToolHandler<GolemAgentMcpServer, ()> for AgentMethodMcpBridge {
 const BIND_ADDRESS: &str = "127.0.0.1:8000";
 
 /*
-This service-map is pretty much RMCP specific
+This service-map is pretty much RMCP specific. I believe we can avoid this complexity though.
+There is a way out to this although introducing more code, but its mechanical. (We will detail this)
 
 Wiring in AgentId from the MCP URL was not a great experience due
-to rmcp coming in between where it can form the service only if it list the routes.
-and hefty assumptions that the struct representing server has a field called `tool_routes` and
-and it can only be eagerly computed list of routes.
-Ok(GolemAgentMcpServer::new(agent_id)))
-The API of rmcp has a bit of chicken-and-egg problem.
-Ideally the way to do this was "identify the agent_id only during `mcp-initialize` and then update
-the agent-id in scope and then subsequent list tools should acknowledge this agent-id (and there by agent-type and its routes)
-Anyway, this is one of the motivations to go with MCP URL not parameterised by agent_id or agent_type
-and therefore things will look simple in initial PRs for MCP in golem.
+to rmcp specific details where anything starts of with implemnnting that eagerly computed list of tools.
+This is not efficiently use of handshake of MCP where `initialize` can decide the list of tools to be exposed.
+Anyway, we can get over this limitation by making a few changes.
 */
 
 type ServiceMap = Arc<RwLock<HashMap<AgentId, StreamableHttpService<
@@ -238,6 +229,12 @@ impl GolemAgentMcpServer {
     }
 }
 
+// While macros in rmcp was useless fo us, and we avoided,
+// I think this macros is also not good for us either, although it works for now.
+// But golem shouldn't be using this macros from day 1.
+// We should copy the relevant implenetations such as list-tools
+// and then avoid design flaws such as expecting this to be pre-computed in GolemAgentMcpServer
+// This will make the code far better although obviously verbose
 #[tool_handler(meta = Meta(rmcp::object!({"tool_meta_key": "tool_meta_value"})))]
 #[task_handler]
 impl ServerHandler for GolemAgentMcpServer {
