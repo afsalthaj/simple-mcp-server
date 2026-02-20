@@ -1,4 +1,10 @@
-#![allow(dead_code)]
+// This is an example of MCP server per agent-id. Altogether I felt a little awkward
+// to implement (it's implementation details not conceptual issues).
+// Implementation is complex rmcp unlike a global MCP server per domain which can route
+// to various agent instances, in which case the tools embed the information of how
+// the agent should be constructed (similar to code first routes). So this particular POC code
+// is second priority compared to `rmcp_default_server.rs`. If you haven't read that, please read
+// before reading this one.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -26,6 +32,8 @@ use tracing_subscriber::{
 
 
 // This is not an example of rmcp but an example of how it could work with Golem
+// with 1 MCP server is per agent "instance" (url encoded with ID - only tested with query parameters)
+// `/mcp/my-agent(agent_id)`
 
 // This is what I think we should do in Golem and create an instance of CallToolHandler
 // Direct use of SDK is much more simpler because these are all "macro" handled,
@@ -36,8 +44,11 @@ pub struct AgentMethodMcpBridge {
 }
 
 
-// In golem we will have exactly this to a great extent.
-// An AgentMethod
+// While `CallToolHandler` is auto implemented by `tool_handler` macro usually
+// but in our case this is manuakl
+// in SDK given a tool annotated function
+// but in our case there is no tool or resource annotation
+
 impl CallToolHandler<GolemAgentMcpServer, ()> for AgentMethodMcpBridge {
     fn call(
         self,
@@ -54,11 +65,21 @@ impl CallToolHandler<GolemAgentMcpServer, ()> for AgentMethodMcpBridge {
 
 const BIND_ADDRESS: &str = "127.0.0.1:8000";
 
-// Not good...........
-// Must find ways to avoid it.
-// THis is because to form the routing we need to know the agent_id
-//  Ok(GolemAgentMcpServer::new(agent_id)))
-// but then we cannot build it for all the requests that happened during handshake
+/*
+This service-map is pretty much RMCP specific
+
+Wiring in AgentId from the MCP URL was not a great experience due
+to rmcp coming in between where it can form the service only if it list the routes.
+and hefty assumptions that the struct representing server has a field called `tool_routes` and
+and it can only be eagerly computed list of routes.
+Ok(GolemAgentMcpServer::new(agent_id)))
+The API of rmcp has a bit of chicken-and-egg problem.
+Ideally the way to do this was "identify the agent_id only during `mcp-initialize` and then update
+the agent-id in scope and then subsequent list tools should acknowledge this agent-id (and there by agent-type and its routes)
+Anyway, this is one of the motivations to go with MCP URL not parameterised by agent_id or agent_type
+and therefore things will look simple in initial PRs for MCP in golem.
+*/
+
 type ServiceMap = Arc<RwLock<HashMap<AgentId, StreamableHttpService<
     GolemAgentMcpServer,
     LocalSessionManager
