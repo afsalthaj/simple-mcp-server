@@ -229,12 +229,12 @@ impl GolemAgentMcpServer {
     }
 }
 
-// While macros in rmcp was useless fo us, and we avoided,
-// I think this macros is also not good for us either, although it works for now.
-// But golem shouldn't be using this macros from day 1.
-// We should copy the relevant implenetations such as list-tools
-// and then avoid design flaws such as expecting this to be pre-computed in GolemAgentMcpServer
-// This will make the code far better although obviously verbose
+// Almost all macros in rmcp was useless for us (and that's expected - and we are not using it for these helpers anyway).
+// We avoided it for the most part except for the below one, and that should also disappear.
+// It works for now. However, we should copy the relevant implenetations such as list-tools
+// and then avoid design flaws such as expecting listing to be pre-computed in GolemAgentMcpServer rather
+// than mcp-initialize phase deciding it. This will make the code far better in architecture and MCP lifecycle
+// although obviously verbose
 #[tool_handler(meta = Meta(rmcp::object!({"tool_meta_key": "tool_meta_value"})))]
 #[task_handler]
 impl ServerHandler for GolemAgentMcpServer {
