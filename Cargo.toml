@@ -3,6 +3,9 @@ name = "mcp-server"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "mcp_server"
+path = "src/lib.rs"
 
 [dependencies]
 rmcp = {version = "0.16.0", features = ["server", "transport-streamable-http-server"] }
@@ -29,3 +32,7 @@ path = "src/manual_server.rs"
 [[example]]
 name = "golem_server_rmcp"
 path = "src/rmcp_streamable_http.rs"
+
+[[example]]
+name = "golem_server_flattened_rmcp"
+path = "src/rmcp_flattened.rs"

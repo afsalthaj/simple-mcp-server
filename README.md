@@ -10,7 +10,8 @@ cargo run --example manual_server
 # rust sdk
 
 cargo run --example golem_server_rmcp
-
+# or
+golem_server_flattened_rmcp
 ```
 
 
