@@ -7,11 +7,13 @@ use rmcp::{
     task_manager::OperationProcessor, tool_handler, ErrorData as McpError, RoleServer,
     ServerHandler,
 };
+use rmcp::handler::server::router::prompt::PromptRouter;
 use serde_json::{json};
 use tokio::sync::{Mutex};
 
 use crate::golem::{AgentId, AgentMethod, AgentType, ElementSchema};
 use crate::mcp_adaptor::{AgentMcpTool, McpAgentCapability, McpToolSchema, McpToolSchemaMapper};
+use crate::mcp_adaptor::agent_mcp_prompt::AgentMcpPrompt;
 
 #[derive(Clone)]
 pub struct GolemAgentMcpServer {
@@ -39,10 +41,28 @@ impl GolemAgentMcpServer {
 
         router
     }
+
+    fn prompt_router(agent_id: Option<AgentId>) -> PromptRouter<GolemAgentMcpServer> {
+        let prompt_handlers = get_agent_prompt_and_handlers(agent_id);
+
+        let mut router = PromptRouter::<Self>::new();
+
+        for (prompt, prompt_handler) in prompt_handlers {
+            router = router.with_route((prompt, prompt_handler));
+        }
+
+        router
+    }
+}
+
+pub fn get_agent_prompt_and_handlers(agent_id: Option<AgentId>) -> Vec<(Prompt, AgentMcpPrompt)> {
+    // similar to get_agent_tool_and_handlers, but for prompts
+    // prompt name is `get_${method_name}_prompt`
+    vec![]
 }
 
 pub fn get_agent_tool_and_handlers(agent_id: Option<AgentId>) -> Vec<(Tool, AgentMcpTool)> {
-    
+
     match agent_id {
         Some(agent) => {
             // just dummy,
@@ -79,16 +99,16 @@ pub fn get_agent_tool_and_handlers(agent_id: Option<AgentId>) -> Vec<(Tool, Agen
         },
         None => {
             let agent_types = vec!["agent_type_1".to_string(), "agent_type_2".to_string()];
-            
+
             for agent_type in &agent_types {
                let agent_method  = get_agent_methods(agent_type);
                let agent_constructor = format!("Constructor for {}", agent_type);
-              
+
                 // and append consturctor schema into the agent_method
-                
-                
+
+
            }
-            
+
             vec![]
         }
     }

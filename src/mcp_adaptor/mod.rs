@@ -9,3 +9,4 @@ mod agent_mcp_server;
 mod agent_mcp_capability;
 mod agent_mcp_resource;
 mod mcp_schema;
+mod agent_mcp_prompt;
