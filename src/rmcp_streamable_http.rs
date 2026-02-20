@@ -107,6 +107,15 @@ async fn mcp_entry(
     req: axum::http::Request<axum::body::Body>,
 ) -> impl axum::response::IntoResponse {
 
+
+    println!("Method       : {:?}", req.method());
+    println!("Version      : {:?}", req.version());
+    println!("URI (full)   : {:?}", req.uri());
+    println!("Path         : {:?}", req.uri().path());
+    println!("Query        : {:?}", req.uri().query());
+    println!("Headers      : {:#?}", req.headers());
+    println!("Agent ID     : {:?}", agent_id);
+
     if let Some(service) = services.read().await.get(&agent_id) {
         return service.handle(req).await;
     }
@@ -125,33 +134,44 @@ async fn mcp_entry(
     service.handle(req).await
 }
 
-type ParameterName = String;
-type ElementSchema = String;
+type ParameterName = String; // parameter name in the method signature
+type ElementSchema = String; // name of th etype
 
 type DataSchema = Vec<(ParameterName, ElementSchema)>; // A simple representation of input schema
 
-// This schema mapping should be a task
-fn get_schema(input: DataSchema) -> JsonObject {
-    let mut properties = serde_json::Map::new();
-    for (param_name, element_schema) in input {
-        // For simplicity, we treat element_schema as a string describing the type
-        // In a real implementation, this would be more complex and handle nested structures
-        let schema = match element_schema.as_str() {
-            "string" => json!({"type": "string"}), // We will be port this POC soon to Golem where the match on is ElementSchema I guess
-            "integer" => json!({"type": "integer"}),
-            "boolean" => json!({"type": "boolean"}),
-            _ => json!({"type": "string"}), // Default to string for unknown types
-        };
-        properties.insert(param_name, schema);
-    }
-    json!({
+
+trait McpSchemaMapper {
+    fn get_json_object_schema(&self) -> JsonObject;
+}
+
+struct DataSchemaMcpBridge {
+    schema: DataSchema, // mny be we need separate bridge for input and output because of the parmeter name in result type is not really needed
+}
+
+impl McpSchemaMapper for DataSchemaMcpBridge {
+    fn get_json_object_schema(&self) -> JsonObject {
+        let mut properties = serde_json::Map::new();
+        for (param_name, element_schema) in self.schema.iter() {
+            // For simplicity, we treat element_schema as a string describing the type
+            // In a real implementation, this would be more complex and handle nested structures
+            let schema = match element_schema.as_str() {
+                "string" => json!({"type": "string"}), // We will be port this POC soon to Golem where the match on is ElementSchema I guess
+                "integer" => json!({"type": "integer"}),
+                "boolean" => json!({"type": "boolean"}),
+                _ => json!({"type": "string"}), // Default to string for unknown types
+            };
+            properties.insert(param_name.clone(), schema);
+        }
+        json!({
         "type": "object",
         "properties": properties,
     })
-    .as_object()
-    .unwrap()
-    .clone()
+            .as_object()
+            .unwrap()
+            .clone()
+    }
 }
+
 
 #[derive(Clone)]
 pub struct AgentMethod {
@@ -173,8 +193,16 @@ pub fn get_agent_tool_and_handlers(agent_id: &AgentId) -> Vec<(Tool, AgentMethod
         output_schema: vec![("result".into(), "string".into())],
     };
 
-    let input_schema = get_schema(agent_method.input_schema);
-    let output_schema = get_schema(agent_method.output_schema);
+    let mcp_data_schema_input = DataSchemaMcpBridge {
+        schema: agent_method.input_schema.clone(),
+    };
+
+        let mcp_data_schema_output = DataSchemaMcpBridge {
+            schema: agent_method.output_schema.clone(),
+        };
+
+    let input_schema =  mcp_data_schema_input.get_json_object_schema();
+    let output_schema = mcp_data_schema_output.get_json_object_schema();
 
     vec![(
         Tool {
@@ -296,6 +324,20 @@ impl ServerHandler for GolemAgentMcpServer {
         context: RequestContext<RoleServer>,
     ) -> Result<InitializeResult, McpError> {
         if let Some(http_request_part) = context.extensions.get::<axum::http::request::Parts>() {
+            println!("\n================== MCP INITIALIZE ==================");
+
+            if let Some(http_parts) = context.extensions.get::<axum::http::request::Parts>() {
+                println!("Version      : {:?}", http_parts.version);
+                println!("URI          : {:?}", http_parts.uri);
+                println!("Path         : {:?}", http_parts.uri.path());
+                println!("Query        : {:?}", http_parts.uri.query());
+                println!("Headers      : {:#?}", http_parts.headers);
+            } else {
+                println!("No HTTP parts found in extensions");
+            }
+
+            println!("=====================================================\n");
+
             let initialize_headers = &http_request_part.headers;
             let initialize_uri = &http_request_part.uri;
             dbg!("here are the initialize headers ", initialize_headers);
