@@ -216,23 +216,26 @@ impl ServerHandler for GolemAgentMcpServer {
         dbg!(context.extensions.len());
         dbg!(&request);
 
-        if let Some(meta) = context.extensions.get::<HttpMeta>() {
+        // Extract http::request::Parts (injected by rmcp's StreamableHttpService)
+        if let Some(parts) = context.extensions.get::<http::request::Parts>() {
             println!("\n================== MCP INITIALIZE ==================");
-            println!("Version      : {:?}", meta.version);
-            println!("URI          : {:?}", meta.uri);
-            println!("Path         : {:?}", meta.uri.path());
-            println!("Query        : {:?}", meta.uri.query());
-            println!("Headers      : {:#?}", meta.headers);
+            println!("Version      : {:?}", parts.version);
+            println!("Method       : {:?}", parts.method);
+            println!("URI          : {:?}", parts.uri);
+            println!("Path         : {:?}", parts.uri.path());
+            println!("Query        : {:?}", parts.uri.query());
+            println!("Headers      : {:#?}", parts.headers);
             println!("=====================================================\n");
 
             tracing::info!(
-            version = ?meta.version,
-            uri = %meta.uri,
-            headers = ?meta.headers,
-            "initialize from http server"
-        );
+                version = ?parts.version,
+                method = ?parts.method,
+                uri = %parts.uri,
+                headers = ?parts.headers,
+                "initialize from http server"
+            );
         } else {
-            println!("No HttpMeta found in context.extensions");
+            println!("No http::request::Parts found in context.extensions");
         }
 
         Ok(self.get_info())
