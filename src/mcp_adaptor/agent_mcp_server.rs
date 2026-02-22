@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use std::sync::Arc;
-use axum::extract::{Path, Query, State};
-use headers::Age;
+use poem::http;
 use rmcp::{
     handler::server::router::tool::ToolRouter, model::*, service::RequestContext, task_handler,
     task_manager::OperationProcessor, tool_handler, ErrorData as McpError, RoleServer,
@@ -12,8 +11,9 @@ use serde_json::{json};
 use tokio::sync::{Mutex};
 
 use crate::golem::{AgentId, AgentMethod, AgentType, ElementSchema};
-use crate::mcp_adaptor::{AgentMcpTool, McpAgentCapability, McpToolSchema, McpToolSchemaMapper};
+use crate::mcp_adaptor::{AgentMcpTool, HttpMeta, McpAgentCapability, McpToolSchema, McpToolSchemaMapper};
 use crate::mcp_adaptor::agent_mcp_prompt::AgentMcpPrompt;
+
 
 #[derive(Clone)]
 pub struct GolemAgentMcpServer {
@@ -98,18 +98,36 @@ pub fn get_agent_tool_and_handlers(agent_id: Option<AgentId>) -> Vec<(Tool, Agen
             tools
         },
         None => {
-            let agent_types = vec!["agent_type_1".to_string(), "agent_type_2".to_string()];
+            let agent_method = get_agent_methods(&"any_agent".to_string());
 
-            for agent_type in &agent_types {
-               let agent_method  = get_agent_methods(agent_type);
-               let agent_constructor = format!("Constructor for {}", agent_type);
+            let mut tools = vec![];
 
-                // and append consturctor schema into the agent_method
+            for method in agent_method.into_iter() {
+                let agent_method_mcp = McpAgentCapability::from(method);
+
+                match agent_method_mcp {
+                    McpAgentCapability::Tool(agent_mcp_tool) => {
+                        let McpToolSchema {input_schema, output_schema} = agent_mcp_tool.get_schema();
+                        let tool = Tool {
+                            name: Cow::from(agent_mcp_tool.tool.method_name.clone()),
+                            title: None,
+                            description: Some("An increment method that takes a number and increment it".into()),
+                            input_schema: Arc::new(input_schema),
+                            output_schema: output_schema.map(Arc::new),
+                            annotations: None,
+                            execution: None,
+                            icons: None,
+                            meta: None,
+                        };
 
 
-           }
+                        tools.push((tool, agent_mcp_tool));
+                    }
+                    McpAgentCapability::Resource(_) => {}
+                }
+            }
 
-            vec![]
+            tools
         }
     }
 
@@ -191,29 +209,32 @@ impl ServerHandler for GolemAgentMcpServer {
 
     async fn initialize(
         &self,
-        _request: InitializeRequestParams,
+        request: InitializeRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<InitializeResult, McpError> {
-        if let Some(http_request_part) = context.extensions.get::<axum::http::request::Parts>() {
+
+        dbg!(context.extensions.len());
+        dbg!(&request);
+
+        if let Some(meta) = context.extensions.get::<HttpMeta>() {
             println!("\n================== MCP INITIALIZE ==================");
-
-            if let Some(http_parts) = context.extensions.get::<axum::http::request::Parts>() {
-                println!("Version      : {:?}", http_parts.version);
-                println!("URI          : {:?}", http_parts.uri);
-                println!("Path         : {:?}", http_parts.uri.path());
-                println!("Query        : {:?}", http_parts.uri.query());
-                println!("Headers      : {:#?}", http_parts.headers);
-            } else {
-                println!("No HTTP parts found in extensions");
-            }
-
+            println!("Version      : {:?}", meta.version);
+            println!("URI          : {:?}", meta.uri);
+            println!("Path         : {:?}", meta.uri.path());
+            println!("Query        : {:?}", meta.uri.query());
+            println!("Headers      : {:#?}", meta.headers);
             println!("=====================================================\n");
 
-            let initialize_headers = &http_request_part.headers;
-            let initialize_uri = &http_request_part.uri;
-            dbg!("here are the initialize headers ", initialize_headers);
-            tracing::info!(?initialize_headers, %initialize_uri, "initialize from http server");
+            tracing::info!(
+            version = ?meta.version,
+            uri = %meta.uri,
+            headers = ?meta.headers,
+            "initialize from http server"
+        );
+        } else {
+            println!("No HttpMeta found in context.extensions");
         }
+
         Ok(self.get_info())
     }
 }

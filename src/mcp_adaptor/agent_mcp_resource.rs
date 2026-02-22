@@ -1,9 +1,3 @@
-use futures::future::BoxFuture;
-use futures::FutureExt;
-use rmcp::ErrorData;
-use rmcp::handler::server::tool::{CallToolHandler, ToolCallContext};
-use rmcp::model::{CallToolResult, JsonObject};
-use serde_json::json;
 use crate::golem::AgentMethod;
 
 #[derive(Clone)]
