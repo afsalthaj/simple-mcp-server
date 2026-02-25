@@ -57,6 +57,22 @@ curl -i -X POST http://localhost:8080/mcp \
 
 ```
 
+## Initialized notitifcation
+
+
+```
+curl -i -X POST https://telecom-exam-chances-developer.trycloudflare.com/my-agent/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "Mcp-Session-Id: 59fcd8cf-0399-481a-97ed-24284327b880" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "notifications/initialized",
+    "params": {}
+  }'
+
+```
+
 Response has SessionId in header. 
 
 
